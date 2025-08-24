@@ -1,0 +1,33 @@
+version: '3.8'
+services:
+  voucher.api:
+    container_name: voucher.api
+    image: ghcr.io/pablocattalin/voucher-service-api:latest    
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${VOUCHER_API_ENVIRONMENT}
+      - ASPNETCORE_HTTP_PORTS=80
+      - ConnectionStrings__Persistence=${VOUCHER_API_CONNECTION_STRING}
+      - MessageBroker__Host=66.97.47.10
+      - MessageBroker__Port=5672
+      - MessageBroker__VirtualHost=/
+      - MessageBroker__UserName=agpc      
+      - MessageBroker__Password=Agpc1612*
+    ports:
+      - "${VOUCHER_API_HTTP_PORTS}:80"
+    networks:
+      - appnet
+
+  voucher.migrator:
+    image: ghcr.io/pablocattalin/voucher-service-migrator:latest
+    container_name: voucher.migrator
+    restart: "no"
+    networks:
+      - appnet
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__Persistence=${VOUCHER_API_CONNECTION_STRING}
+  
+
+networks:
+  appnet:
+     external: true  

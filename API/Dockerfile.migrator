@@ -1,0 +1,27 @@
+﻿FROM mcr.microsoft.com/dotnet/sdk:8.0 AS migrator
+
+WORKDIR /app
+
+# Instalar EF Core CLI
+RUN dotnet tool install --global dotnet-ef
+ENV PATH="${PATH}:/root/.dotnet/tools"
+
+# Copiar los archivos de proyecto
+COPY ["API/API.csproj", "API/"]
+COPY ["Application/Application.csproj", "Application/"]
+COPY ["Common/BuildingBlocks/BuildingBlocks.csproj", "Common/BuildingBlocks/"]
+COPY ["Domain/Domain.csproj", "Domain/"]
+COPY ["Infrastructure/Infrastructure.csproj", "Infrastructure/"]
+COPY ["Persistence/Persistence.csproj", "Persistence/"]
+
+RUN dotnet restore "API/API.csproj"
+
+COPY . .
+
+# Build (opcional si querés asegurarte que todo compile)
+RUN dotnet build "API/API.csproj" -c Release
+RUN echo "Cadena de conexión: $ConnectionStrings__Persistence"
+
+# Ejecutar migraciones
+ENTRYPOINT sh -c 'echo "📢 Cadena de conexión: $ConnectionStrings__Persistence" && dotnet ef database update --project Persistence --startup-project API -v'
+
