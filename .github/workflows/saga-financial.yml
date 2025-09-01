@@ -1,0 +1,97 @@
+name: Build and Publish Images saga financial
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v2
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker images
+      run: |
+        docker build --no-cache \
+          -t ghcr.io/pablocattalin/saga-financial-service-api:latest \
+          -f API/Dockerfile .
+        docker build --no-cache \
+          -t ghcr.io/pablocattalin/saga-financial-service-migrator:latest \
+          -f API/Dockerfile.migrator .
+        docker push ghcr.io/pablocattalin/saga-financial-service-api:latest
+        docker push ghcr.io/pablocattalin/saga-financial-service-migrator:latest  
+
+    - name: Generate .env file
+      run: |
+        echo "SAGA_FINANCIAL_API_ENVIRONMENT=Production" > .env        
+        echo "API_HTTP_PORTS=7050" >> .env      
+        echo "SAGA_FINANCIAL_API_HTTP_PORTS=8062" >> .env        
+        echo "SAGA_FINANCIAL_API_CONNECTION_STRING=Server=66.97.47.10;Database=VoucherDb;User Id=sa;Password=${{ secrets.SA_PASSWORD }};TrustServerCertificate=True" >> .env            
+
+    - name: Upload .ENV file compose
+      uses: appleboy/scp-action@v0.1.5
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 5681
+        source: ".financial_env"
+        target: "/root/saga-financial/"
+
+    - name: Upload voucher compose
+      uses: appleboy/scp-action@v0.1.5
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 5681
+        source: "./prod-docker-compose.yml"
+        target: "/root/saga-financial/"
+
+    - name: Deploy all services
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        port: 5681
+        script: |
+          set -e
+
+          # Nombre completo de la imagen a afectar
+          IMAGE_NAME="ghcr.io/pablocattalin/saga-financial-service-api:latest"
+          
+          # Detener contenedores que usan esa imagen
+          docker ps --filter "ancestor=$IMAGE_NAME" -q | xargs -r docker stop
+          
+          # Eliminar contenedores que usan esa imagen (detenidos o no)
+          docker ps -a --filter "ancestor=$IMAGE_NAME" -q | xargs -r docker rm
+          
+          # Eliminar la imagen
+          docker images --filter=reference="$IMAGE_NAME" -q | xargs -r docker rmi
+                          
+          docker network create appnet || true
+          
+          # voucher service
+          cd saga-financial
+          docker compose -f prod-docker-compose.yml pull
+          docker compose -f prod-docker-compose.yml run --rm  saga.financial.migrator
+          docker compose -f prod-docker-compose.yml up -d
