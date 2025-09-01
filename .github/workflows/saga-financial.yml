@@ -44,7 +44,7 @@ jobs:
         echo "SAGA_FINANCIAL_API_ENVIRONMENT=Production" > .env        
         echo "API_HTTP_PORTS=7050" >> .env      
         echo "SAGA_FINANCIAL_API_HTTP_PORTS=8062" >> .env        
-        echo "SAGA_FINANCIAL_API_CONNECTION_STRING=Server=66.97.47.10;Database=VoucherDb;User Id=sa;Password=${{ secrets.SA_PASSWORD }};TrustServerCertificate=True" >> .env            
+        echo "SAGA_FINANCIAL_API_CONNECTION_STRING=Server=66.97.47.10;Database=SagaFinancial;User Id=sa;Password=${{ secrets.SA_PASSWORD }};TrustServerCertificate=True" >> .env            
 
     - name: Upload .ENV file compose
       uses: appleboy/scp-action@v0.1.5
